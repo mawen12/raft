@@ -100,6 +100,7 @@ func (p *Peer) startHeartbeat() {
 }
 
 // Stops the peer heartbeat.
+// stopHeartbeat 停止心跳检测
 func (p *Peer) stopHeartbeat(flush bool) {
 	p.setLastActivity(time.Time{})
 

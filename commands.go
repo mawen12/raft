@@ -5,6 +5,7 @@ import (
 )
 
 // Join command interface
+/* 代表新 server 加入集群的命令接口 */
 type JoinCommand interface {
 	Command
 	NodeName() string
@@ -12,18 +13,23 @@ type JoinCommand interface {
 
 // Join command
 type DefaultJoinCommand struct {
-	Name             string `json:"name"`
+	// server name
+	Name string `json:"name"`
+	// server 的连接地址
 	ConnectionString string `json:"connectionString"`
 }
 
 // Leave command interface
+/* 代表有 sever 退出集群的命令接口 */
 type LeaveCommand interface {
 	Command
+	// server name
 	NodeName() string
 }
 
 // Leave command
 type DefaultLeaveCommand struct {
+	// server name
 	Name string `json:"name"`
 }
 
@@ -37,6 +43,7 @@ func (c *DefaultJoinCommand) CommandName() string {
 }
 
 func (c *DefaultJoinCommand) Apply(server Server) (interface{}, error) {
+	// 将新的 node 添加到 server.peers 中
 	err := server.AddPeer(c.Name, c.ConnectionString)
 
 	return []byte("join"), err
@@ -52,6 +59,7 @@ func (c *DefaultLeaveCommand) CommandName() string {
 }
 
 func (c *DefaultLeaveCommand) Apply(server Server) (interface{}, error) {
+	// 将 node 从 server.peers 中移除
 	err := server.RemovePeer(c.Name)
 
 	return []byte("leave"), err
@@ -66,6 +74,7 @@ func (c NOPCommand) CommandName() string {
 }
 
 func (c NOPCommand) Apply(server Server) (interface{}, error) {
+	// NOP
 	return nil, nil
 }
 

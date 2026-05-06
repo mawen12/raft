@@ -21,17 +21,28 @@ import (
 
 // An HTTPTransporter is a default transport layer used to communicate between
 // multiple servers.
+
+/* HTTPTransporter 是基于 HTTP 协议的传输层实现，用于在多个 server 之间通信 */
 type HTTPTransporter struct {
-	DisableKeepAlives    bool
-	prefix               string
-	appendEntriesPath    string
-	requestVotePath      string
-	snapshotPath         string
+	// 是否禁用 keepAlive
+	DisableKeepAlives bool
+	// 通用前缀
+	prefix string
+	// apepdnEntries 路径
+	appendEntriesPath string
+	// requestVote 路径
+	requestVotePath string
+	// snapshot 路径
+	snapshotPath string
+	// snapshotRecovery 路径
 	snapshotRecoveryPath string
-	httpClient           http.Client
-	Transport            *http.Transport
+	// 底层负责通信的客户端
+	httpClient http.Client
+	// 底层负责通信的HTTP传输层
+	Transport *http.Transport
 }
 
+/* HTTP 路由接口 */
 type HTTPMuxer interface {
 	HandleFunc(string, func(http.ResponseWriter, *http.Request))
 }
@@ -112,16 +123,20 @@ func (t *HTTPTransporter) Install(server Server, mux HTTPMuxer) {
 //--------------------------------------
 
 // Sends an AppendEntries RPC to a peer.
+// SendAppendEntriesRequest 发送 AppendEntries RPC 到一个 peer
 func (t *HTTPTransporter) SendAppendEntriesRequest(server Server, peer *Peer, req *AppendEntriesRequest) *AppendEntriesResponse {
 	var b bytes.Buffer
+	// 对请求进行序列化
 	if _, err := req.Encode(&b); err != nil {
 		traceln("transporter.ae.encoding.error:", err)
 		return nil
 	}
 
+	// 构造指向 /appendEntries 的完整路径
 	url := joinPath(peer.ConnectionString, t.AppendEntriesPath())
 	traceln(server.Name(), "POST", url)
 
+	// 使用 post 发送请求
 	httpResp, err := t.httpClient.Post(url, "application/protobuf", &b)
 	if httpResp == nil || err != nil {
 		traceln("transporter.ae.response.error:", err)
@@ -129,6 +144,7 @@ func (t *HTTPTransporter) SendAppendEntriesRequest(server Server, peer *Peer, re
 	}
 	defer httpResp.Body.Close()
 
+	// 反序列化响应
 	resp := &AppendEntriesResponse{}
 	if _, err = resp.Decode(httpResp.Body); err != nil && err != io.EOF {
 		traceln("transporter.ae.decoding.error:", err)
@@ -141,14 +157,17 @@ func (t *HTTPTransporter) SendAppendEntriesRequest(server Server, peer *Peer, re
 // Sends a RequestVote RPC to a peer.
 func (t *HTTPTransporter) SendVoteRequest(server Server, peer *Peer, req *RequestVoteRequest) *RequestVoteResponse {
 	var b bytes.Buffer
+	// 对请求进行序列化
 	if _, err := req.Encode(&b); err != nil {
 		traceln("transporter.rv.encoding.error:", err)
 		return nil
 	}
 
+	// 构造指向 /requestVote 的完整路径
 	url := fmt.Sprintf("%s%s", peer.ConnectionString, t.RequestVotePath())
 	traceln(server.Name(), "POST", url)
 
+	// 使用 post 发送请求
 	httpResp, err := t.httpClient.Post(url, "application/protobuf", &b)
 	if httpResp == nil || err != nil {
 		traceln("transporter.rv.response.error:", err)
@@ -156,6 +175,7 @@ func (t *HTTPTransporter) SendVoteRequest(server Server, peer *Peer, req *Reques
 	}
 	defer httpResp.Body.Close()
 
+	// 反序列化响应
 	resp := &RequestVoteResponse{}
 	if _, err = resp.Decode(httpResp.Body); err != nil && err != io.EOF {
 		traceln("transporter.rv.decoding.error:", err)
@@ -177,14 +197,17 @@ func joinPath(connectionString, thePath string) string {
 // Sends a SnapshotRequest RPC to a peer.
 func (t *HTTPTransporter) SendSnapshotRequest(server Server, peer *Peer, req *SnapshotRequest) *SnapshotResponse {
 	var b bytes.Buffer
+	// 对请求进行序列化
 	if _, err := req.Encode(&b); err != nil {
 		traceln("transporter.rv.encoding.error:", err)
 		return nil
 	}
 
+	// 构造指向 /snapshot 的完整路径
 	url := joinPath(peer.ConnectionString, t.snapshotPath)
 	traceln(server.Name(), "POST", url)
 
+	// 使用 post 发送请求
 	httpResp, err := t.httpClient.Post(url, "application/protobuf", &b)
 	if httpResp == nil || err != nil {
 		traceln("transporter.rv.response.error:", err)
@@ -192,6 +215,7 @@ func (t *HTTPTransporter) SendSnapshotRequest(server Server, peer *Peer, req *Sn
 	}
 	defer httpResp.Body.Close()
 
+	// 反序列化响应
 	resp := &SnapshotResponse{}
 	if _, err = resp.Decode(httpResp.Body); err != nil && err != io.EOF {
 		traceln("transporter.rv.decoding.error:", err)
@@ -204,14 +228,17 @@ func (t *HTTPTransporter) SendSnapshotRequest(server Server, peer *Peer, req *Sn
 // Sends a SnapshotRequest RPC to a peer.
 func (t *HTTPTransporter) SendSnapshotRecoveryRequest(server Server, peer *Peer, req *SnapshotRecoveryRequest) *SnapshotRecoveryResponse {
 	var b bytes.Buffer
+	// 对请求进行序列化
 	if _, err := req.Encode(&b); err != nil {
 		traceln("transporter.rv.encoding.error:", err)
 		return nil
 	}
 
+	// 构造指向 /snapshotRecovery 的完整路径
 	url := joinPath(peer.ConnectionString, t.snapshotRecoveryPath)
 	traceln(server.Name(), "POST", url)
 
+	// 使用 post 发送请求
 	httpResp, err := t.httpClient.Post(url, "application/protobuf", &b)
 	if httpResp == nil || err != nil {
 		traceln("transporter.rv.response.error:", err)
@@ -219,6 +246,7 @@ func (t *HTTPTransporter) SendSnapshotRecoveryRequest(server Server, peer *Peer,
 	}
 	defer httpResp.Body.Close()
 
+	// 反序列化响应
 	resp := &SnapshotRecoveryResponse{}
 	if _, err = resp.Decode(httpResp.Body); err != nil && err != io.EOF {
 		traceln("transporter.rv.decoding.error:", err)
@@ -233,16 +261,19 @@ func (t *HTTPTransporter) SendSnapshotRecoveryRequest(server Server, peer *Peer,
 //--------------------------------------
 
 // Handles incoming AppendEntries requests.
+// 处理 AppendEntries RPC，当前 server.state = follower
 func (t *HTTPTransporter) appendEntriesHandler(server Server) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		traceln(server.Name(), "RECV /appendEntries")
 
 		req := &AppendEntriesRequest{}
+		// 对请求进行反序列化
 		if _, err := req.Decode(r.Body); err != nil {
 			http.Error(w, "", http.StatusBadRequest)
 			return
 		}
 
+		// 
 		resp := server.AppendEntries(req)
 		if resp == nil {
 			http.Error(w, "Failed creating response.", http.StatusInternalServerError)
