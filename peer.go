@@ -159,6 +159,7 @@ func (p *Peer) heartbeat(c chan bool) {
 				return
 			}
 
+		// 定时心跳
 		case <-ticker:
 			start := time.Now()
 			p.flush()

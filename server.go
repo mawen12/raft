@@ -405,7 +405,7 @@ func (s *server) GetState() string {
 }
 
 // Check if the server is promotable
-// promotable 检查服务器是否处于可晋升状态
+// promotable 根据日志检查服务器是否处于可晋升状态
 func (s *server) promotable() bool {
 	return s.log.currentIndex() > 0
 }
@@ -592,6 +592,7 @@ func (s *server) Stop() {
 	close(s.stopped)
 
 	// make sure all goroutines have stopped before we close the log
+	// 在停止前必须等待所有 goroutine 停止
 	s.routineGroup.Wait()
 
 	s.log.close()
@@ -851,6 +852,7 @@ func (s *server) candidateLoop() {
 			// Send RequestVote RPCs to all other servers.
 			respChan = make(chan *RequestVoteResponse, len(s.peers))
 			for _, peer := range s.peers {
+				// 并发向其他成员发送 VoteRequest
 				s.routineGroup.Add(1)
 				go func(peer *Peer) {
 					defer s.routineGroup.Done()
@@ -870,6 +872,7 @@ func (s *server) candidateLoop() {
 
 		// If we received enough votes then stop waiting for more votes.
 		// And return from the candidate loop
+		// 检查选票是否超过半数,当超过时晋升 Leader
 		if votesGranted == s.QuorumSize() {
 			s.debugln("server.candidate.recv.enough.votes")
 			s.setState(Leader)
@@ -882,12 +885,16 @@ func (s *server) candidateLoop() {
 			s.setState(Stopped)
 			return
 
+		// 作为 server 处理响应
 		case resp := <-respChan:
+			// 检查是否被投票
 			if success := s.processVoteResponse(resp); success {
 				s.debugln("server.candidate.vote.granted: ", votesGranted)
+				// 选票+1
 				votesGranted++
 			}
 
+		// 作为 client 处理请求
 		case e := <-s.c:
 			var err error
 			switch req := e.target.(type) {
@@ -966,6 +973,7 @@ func (s *server) snapshotLoop() {
 	for s.State() == Snapshotting {
 		var err error
 		select {
+		// 响应 stop
 		case <-s.stopped:
 			s.setState(Stopped)
 			return
@@ -1179,6 +1187,7 @@ func (s *server) RequestVote(req *RequestVoteRequest) *RequestVoteResponse {
 func (s *server) processRequestVoteRequest(req *RequestVoteRequest) (*RequestVoteResponse, bool) {
 
 	// If the request is coming from an old term then reject it.
+	// 当请求的任期低于当前服务器的任期,拒绝
 	if req.Term < s.Term() {
 		s.debugln("server.rv.deny.vote: cause stale term")
 		return newRequestVoteResponse(s.currentTerm, false), false
@@ -1187,16 +1196,19 @@ func (s *server) processRequestVoteRequest(req *RequestVoteRequest) (*RequestVot
 	// If the term of the request peer is larger than this node, update the term
 	// If the term is equal and we've already voted for a different candidate then
 	// don't vote for this candidate.
-	if req.Term > s.Term() {
+	if req.Term > s.Term() { // 请求者的任期大于当前服务器的任期,更新该服务器的任期,并清空leader
 		s.updateCurrentTerm(req.Term, "")
-	} else if s.votedFor != "" && s.votedFor != req.CandidateName {
+	} else if s.votedFor != "" && s.votedFor != req.CandidateName { // 任期相同,该server也是candidate,且投票的对象与当前不同,则拒绝,相当于只有一次投票权
 		s.debugln("server.deny.vote: cause duplicate vote: ", req.CandidateName,
 			" already vote for ", s.votedFor)
 		return newRequestVoteResponse(s.currentTerm, false), false
 	}
 
+	// 走到此处,代表任期>=,且尚未投票/已经投给了请求的server
+
 	// If the candidate's log is not at least as up-to-date as our last log then don't vote.
 	lastIndex, lastTerm := s.log.lastInfo()
+	// 如果请求的server的日志更新比该服务器要落后,则不给它投票
 	if lastIndex > req.LastLogIndex || lastTerm > req.LastLogTerm {
 		s.debugln("server.deny.vote: cause out of date log: ", req.CandidateName,
 			"Index :[", lastIndex, "]", " [", req.LastLogIndex, "]",

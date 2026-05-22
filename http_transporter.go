@@ -112,9 +112,13 @@ func (t *HTTPTransporter) SnapshotRecoveryPath() string {
 
 // Applies Raft routes to an HTTP router for a given server.
 func (t *HTTPTransporter) Install(server Server, mux HTTPMuxer) {
+	// /{prefix}/appendEntries 
 	mux.HandleFunc(t.AppendEntriesPath(), t.appendEntriesHandler(server))
+	// /{prefix}/requestVote
 	mux.HandleFunc(t.RequestVotePath(), t.requestVoteHandler(server))
+	// /{prefix}/snapshot
 	mux.HandleFunc(t.SnapshotPath(), t.snapshotHandler(server))
+	// /{prefix}/snapshotRecovery
 	mux.HandleFunc(t.SnapshotRecoveryPath(), t.snapshotRecoveryHandler(server))
 }
 
@@ -297,6 +301,7 @@ func (t *HTTPTransporter) requestVoteHandler(server Server) http.HandlerFunc {
 			return
 		}
 
+		// 发起选举
 		resp := server.RequestVote(req)
 		if resp == nil {
 			http.Error(w, "Failed creating response.", http.StatusInternalServerError)
